@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
+
 import {
   Card,
   CardContent,
@@ -45,19 +47,72 @@ export default function DevKoderSite() {
     message: "",
   });
   const [submitted, setSubmitted] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    // Demo submit — replace with your backend endpoint
-    if (!form.name || !form.email)
-      return alert("Please fill your name & email");
-    setSubmitted(true);
-    setTimeout(() => setSubmitted(false), 4000);
-  };
+const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
+
+ const handleSubmit = async (
+   e: React.FormEvent<HTMLFormElement>
+ ): Promise<void> => {
+   e.preventDefault();
+   if (!form.name || !form.email) {
+     setError("Please fill your name & email");
+     return;
+   }
+
+   setLoading(true);
+   setError(null);
+   setSubmitted(false);
+
+   try {
+     const res = await fetch(`${API_URL}/applications`, {
+       method: "POST",
+       headers: { "Content-Type": "application/json" },
+       body: JSON.stringify(form),
+     });
+
+     if (!res.ok) {
+       let message = "Submit failed";
+       let isDuplicate = false;
+       try {
+         const data = (await res.json()) as { message?: string };
+         if (data?.message) message = data.message;
+         if (res.status === 409 || /duplicate|E11000/i.test(message)) {
+           isDuplicate = true;
+         }
+       } catch {
+         /* ignore JSON parse errors */
+       }
+
+       setError(
+         isDuplicate
+           ? "You’ve already submitted an application with this email or phone."
+           : message
+       );
+       return;
+     }
+
+     // success
+     setSubmitted(true);
+     setForm({ name: "", email: "", phone: "", message: "" });
+     setTimeout(() => setSubmitted(false), 4000);
+   } catch (err: unknown) {
+     const message =
+       err instanceof Error ? err.message : "Something went wrong";
+     setError(message);
+   } finally {
+     setLoading(false);
+   }
+ };
+
+
+
 
   const container = {
     hidden: { opacity: 0 },
@@ -539,10 +594,25 @@ export default function DevKoderSite() {
                     rows={3}
                   />
                 </div>
-                <Button type="submit" className="w-full rounded-xl">
-                  Submit Application
+                <Button
+                  type="submit"
+                  className="w-full rounded-xl"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <span className="inline-flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Submitting…
+                    </span>
+                  ) : (
+                    "Submit Application"
+                  )}
                 </Button>
-                {submitted && (
+
+                {error && (
+                  <p className="text-center text-sm text-rose-600">{error}</p>
+                )}
+                {submitted && !error && (
                   <p className="text-center text-sm text-emerald-600">
                     Thanks! Your application has been received.
                   </p>
@@ -614,7 +684,7 @@ export default function DevKoderSite() {
               <div>
                 <p className="text-sm text-slate-500">Phone</p>
                 <a href="tel:+923001234567" className="font-medium">
-                  +92 303 364 4593
+                  +92 370 4250008
                 </a>
               </div>
             </div>
@@ -625,7 +695,7 @@ export default function DevKoderSite() {
               <div>
                 <p className="text-sm text-slate-500">Location</p>
                 <p className="font-medium">
-                  St#3, Muslim Bazar, RahimYarKhan, Pakistan 
+                  St#3, Muslim Bazar, RahimYarKhan, Pakistan
                 </p>
               </div>
             </div>
